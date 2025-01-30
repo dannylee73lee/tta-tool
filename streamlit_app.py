@@ -11,6 +11,7 @@ import xgboost as xgb
 import lightgbm as lgb
 import mapclassify
 from shapely import geometry
+import openpyxl  # 엑셀 파일 처리를 위해 추가
 
 # 페이지 기본 설정
 st.set_page_config(
@@ -29,18 +30,27 @@ st.sidebar.header("설정")
 def main():
     st.write("여기에 메인 컨텐츠가 들어갑니다.")
     
-    # 파일 업로더 추가
-    uploaded_file = st.file_uploader("데이터 파일을 업로드하세요", type=['csv', 'xlsx'])
+    # 파일 업로더 수정
+    uploaded_file = st.file_uploader(
+        "데이터 파일을 업로드하세요", 
+        type={'csv': 'text/csv', 'xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']}
+    )
     
     if uploaded_file is not None:
-        # 파일 확장자 확인
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
+        try:
+            # 파일 확장자 확인
+            file_type = uploaded_file.name.split('.')[-1]
             
-        st.write("데이터 미리보기:")
-        st.dataframe(df.head())
+            if file_type == 'csv':
+                df = pd.read_csv(uploaded_file)
+            elif file_type in ['xlsx', 'xls']:
+                df = pd.read_excel(uploaded_file, engine='openpyxl')
+            
+            st.write("데이터 미리보기:")
+            st.dataframe(df.head())
+            
+        except Exception as e:
+            st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
 
 if __name__ == "__main__":
     main()
