@@ -5,87 +5,101 @@ import matplotlib.pyplot as plt
 import datetime
 import os
 import zipfile
-import glob
-import openpyxl
-from matplotlib import font_manager
+import io
+import tempfile
 
-# 페이지 설정
+# 페이지 설정 및 파일 크기 제한 증가
 st.set_page_config(
-    page_title="Data Analysis App",
+    page_title="SKT 데이터 분석",
     page_icon="📊",
     layout="wide"
 )
 
 # 한글 폰트 설정
-def setup_korean_font():
-    # 윈도우의 경우
-    if os.path.exists('C:/Windows/Fonts/NanumBarunGothic.ttf'):
-        font_path = 'C:/Windows/Fonts/NanumBarunGothic.ttf'
-    # Linux의 경우
-    elif os.path.exists('/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf'):
-        font_path = '/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf'
-    else:
-        st.warning("나눔바른고딕 폰트가 설치되어 있지 않습니다. 시스템 기본 폰트를 사용합니다.")
-        return
-    
-    font_manager.fontManager.addfont(font_path)
-    plt.rcParams['font.family'] = 'NanumBarunGothic'
-    plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.family'] = 'NanumGothic'
+plt.rcParams['axes.unicode_minus'] = False
 
-# 한글 폰트 설정 함수 호출
-setup_korean_font()
+# 메모리 사용량 관리를 위한 설정
+@st.cache_data(ttl=3600)  # 1시간 캐시
+def load_zip_file(uploaded_file):
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(uploaded_file.getvalue())
+        return tmp_file.name
 
-# 앱 제목
-st.title("데이터 분석 애플리케이션")
-
-# 파일 업로더 추가
-uploaded_file = st.file_uploader("분석할 파일을 업로드하세요", 
-                               type=['csv', 'xlsx', 'zip'],
-                               help="CSV, Excel, 또는 ZIP 파일을 업로드할 수 있습니다.")
+# 파일 업로드
+uploaded_file = st.file_uploader(
+    "ZIP 파일을 업로드하세요",
+    type=['zip'],
+    help="SKT 데이터 ZIP 파일을 업로드해주세요."
+)
 
 if uploaded_file is not None:
-    # 파일 확장자 확인
-    file_extension = uploaded_file.name.split('.')[-1].lower()
-    
     try:
-        if file_extension == 'csv':
-            df = pd.read_csv(uploaded_file)
-        elif file_extension == 'xlsx':
-            df = pd.read_excel(uploaded_file)
-        elif file_extension == 'zip':
-            # ZIP 파일 처리
-            with zipfile.ZipFile(uploaded_file) as z:
-                # ZIP 파일 내용 표시
-                st.write("ZIP 파일 내용:")
-                for filename in z.namelist():
-                    st.write(filename)
+        # 임시 파일로 저장
+        temp_file_path = load_zip_file(uploaded_file)
+        
+        with zipfile.ZipFile(temp_file_path, 'r') as zip_ref:
+            # ZIP 파일 내용 표시
+            file_list = zip_ref.namelist()
+            st.write("ZIP 파일 내 포함된 파일들:")
+            for file in file_list:
+                st.write(f"- {file}")
+            
+            # 데이터 처리
+            dfs = []  # 여러 파일의 데이터를 저장할 리스트
+            
+            for file in file_list:
+                if file.endswith('.csv'):
+                    with zip_ref.open(file) as f:
+                        # 파일 내용을 읽어서 데이터프레임으로 변환
+                        content = io.TextIOWrapper(f, encoding='cp949')  # 한글 인코딩 처리
+                        df = pd.read_csv(content)
+                        dfs.append(df)
+            
+            if dfs:
+                # 모든 데이터프레임 합치기
+                combined_df = pd.concat(dfs, ignore_index=True)
                 
-                # 첫 번째 파일 처리 (예시)
-                first_file = z.namelist()[0]
-                if first_file.endswith('.csv'):
-                    df = pd.read_csv(z.open(first_file))
-                elif first_file.endswith('.xlsx'):
-                    df = pd.read_excel(z.open(first_file))
-                else:
-                    st.error("지원되지 않는 파일 형식입니다.")
-                    st.stop()
-        
-        # 데이터프레임 미리보기
-        st.subheader("데이터 미리보기")
-        st.dataframe(df.head())
-        
-        # 기본 정보 표시
-        st.subheader("데이터 기본 정보")
-        st.write(f"행 수: {df.shape[0]}")
-        st.write(f"열 수: {df.shape[1]}")
-        st.write("컬럼 목록:", df.columns.tolist())
-        
-        # 추가적인 분석 코드는 여기에 작성
+                # 데이터 미리보기
+                st.subheader("데이터 미리보기")
+                st.dataframe(combined_df.head())
+                
+                # 기본 통계 정보
+                st.subheader("데이터 기본 정보")
+                st.write(f"총 행 수: {combined_df.shape[0]:,}")
+                st.write(f"총 열 수: {combined_df.shape[1]}")
+                
+                # 메모리 사용량 표시
+                memory_usage = combined_df.memory_usage(deep=True).sum() / 1024**2  # MB 단위
+                st.write(f"메모리 사용량: {memory_usage:.2f} MB")
+                
+                # 컬럼별 정보
+                st.subheader("컬럼 정보")
+                col_info = pd.DataFrame({
+                    '데이터 타입': combined_df.dtypes,
+                    '널값 수': combined_df.isnull().sum(),
+                    '고유값 수': combined_df.nunique()
+                })
+                st.dataframe(col_info)
+                
+                # 사이드바에 분석 옵션 추가
+                with st.sidebar:
+                    st.header("분석 옵션")
+                    if st.checkbox("데이터 타입 변환"):
+                        # 날짜 컬럼 자동 변환
+                        date_columns = combined_df.select_dtypes(include=['object']).columns
+                        for col in date_columns:
+                            if 'date' in col.lower() or 'time' in col.lower():
+                                try:
+                                    combined_df[col] = pd.to_datetime(combined_df[col])
+                                    st.success(f"{col} 컬럼을 날짜 형식으로 변환했습니다.")
+                                except:
+                                    continue
+                
+        # 임시 파일 삭제
+        os.unlink(temp_file_path)
         
     except Exception as e:
         st.error(f"파일 처리 중 오류가 발생했습니다: {str(e)}")
-
-# 사이드바에 추가 옵션 설정
-with st.sidebar:
-    st.header("분석 옵션")
-    # 여기에 필요한 분석 옵션들을 추가할 수 있습니다
+        st.error("자세한 에러 정보:")
+        st.exception(e)
