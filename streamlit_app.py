@@ -18,9 +18,7 @@ import xlrd
 st.set_page_config(
     page_title="데이터 분석 앱",
     page_icon="📊",
-    layout="wide",
-    # 최대 업로드 크기 설정
-    max_upload_size=200
+    layout="wide"
 )
 
 # 앱 제목
@@ -54,7 +52,7 @@ def process_excel(df):
         st.error(f"데이터 처리 중 오류가 발생했습니다: {str(e)}")
 
 def main():
-    st.write("여러 파일을 동시에 업로드할 수 있습니다. (파일당 최대 200MB)")
+    st.write("여러 파일을 동시에 업로드할 수 있습니다.")
     
     # 다중 파일 업로더
     uploaded_files = st.file_uploader(
