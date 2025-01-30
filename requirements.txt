@@ -1,1 +1,16 @@
+matplotlib
+seaborn
+scikit-learn
+xgboost
+lightgbm
+openpyxl
+xlrd
+geopandas
+folium
+networkx
+mapclassify
+pyproj
+shapely
+numpy==1.25.0
+pandas==2.2.2
 streamlit
