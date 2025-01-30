@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -14,6 +15,9 @@ from shapely import geometry
 import openpyxl
 import xlrd
 
+# 환경 변수 설정
+os.environ['STREAMLIT_SERVER_MAX_UPLOAD_SIZE'] = '1024'
+
 # 페이지 기본 설정
 st.set_page_config(
     page_title="데이터 분석 앱",
@@ -28,7 +32,7 @@ st.title("데이터 분석 앱")
 st.sidebar.header("설정")
 
 def main():
-    st.write("여러 파일을 동시에 업로드할 수 있습니다.")
+    st.write("여러 파일을 동시에 업로드할 수 있습니다. (파일당 최대 1GB)")
     
     # 다중 파일 업로더
     uploaded_files = st.file_uploader(
